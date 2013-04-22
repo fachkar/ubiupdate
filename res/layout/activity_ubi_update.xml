@@ -1,0 +1,74 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dip"
+    tools:context=".UbiUpdateActivity" >
+
+    <TextView
+        android:id="@+id/update_status_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dip"
+        android:layout_marginTop="4dip"
+        android:contentDescription="@string/update_status_title_descr"
+        android:text="@string/update_status_title"
+        android:textAppearance="?android:attr/textAppearanceLarge"
+        android:textColor="@android:color/holo_blue_light" />
+
+    <ProgressBar
+        android:id="@+id/update_status_progress_bar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="2dip"
+        android:layout_below="@id/update_status_title"
+        android:layout_gravity="fill_horizontal"
+        android:layout_marginTop="4dip"
+        android:max="100"
+        android:progressDrawable="@drawable/data_usage_bar" />
+
+    <LinearLayout
+        android:id="@+id/update_status_text_linearlayout"
+        android:layout_width="match_parent"
+        android:layout_height="fill_parent"
+        android:layout_below="@id/update_status_progress_bar"
+        android:layout_gravity="center_vertical"
+        android:orientation="vertical" >
+
+        <ScrollView
+            android:id="@+id/update_status_text_scrollview"
+            android:layout_width="match_parent"
+            android:layout_height="fill_parent"
+            android:layout_weight="0.7">
+
+            <TextView
+                android:id="@+id/update_status_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dip"
+                android:gravity="top"
+                android:text="@string/update_status_text"
+                android:textAppearance="?android:attr/textAppearanceMedium" />
+        </ScrollView>
+
+        <FrameLayout
+            android:id="@+id/check_now_framelayout"
+            android:layout_width="match_parent"
+            android:layout_height="fill_parent" 
+            android:layout_weight="0.3">
+
+            <Button
+                android:id="@+id/check_now_button"
+                android:layout_width="120dip"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|right"
+                android:layout_marginRight="12dip"
+                android:layout_marginBottom="12dip"
+                android:layout_marginTop="20dip"
+                android:gravity="center"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:text="@string/check_now_text" />
+        </FrameLayout>
+    </LinearLayout>
+
+</RelativeLayout>
