@@ -2,10 +2,10 @@
 <resources>
 
     <string name="app_name">UbiUpdate</string>
-    <string name="update_status_title">Your system is currently up to date</string>
+    <string name="update_status_title_uptodate">Your system is currently up to date</string>
     <string name="menu_settings">Settings</string>
     <string name="update_status_title_descr">update status title descr</string>
-    <string name="update_status_text">Last Updated February</string>
+    <string name="update_status_text_unkown">Last checked for update unknown.</string>
     <string name="check_now_text">Check now</string>
     <string name="update_checker_service_started">UbiUpdate checking current status</string>
 

@@ -12,7 +12,7 @@
         android:layout_marginBottom="4dip"
         android:layout_marginTop="4dip"
         android:contentDescription="@string/update_status_title_descr"
-        android:text="@string/update_status_title"
+        android:text="@string/update_status_title_uptodate"
         android:textAppearance="?android:attr/textAppearanceLarge"
         android:textColor="@android:color/holo_blue_light" />
 
@@ -47,7 +47,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dip"
                 android:gravity="top"
-                android:text="@string/update_status_text"
+                android:text="@string/update_status_text_unkown"
                 android:textAppearance="?android:attr/textAppearanceMedium" />
         </ScrollView>
 

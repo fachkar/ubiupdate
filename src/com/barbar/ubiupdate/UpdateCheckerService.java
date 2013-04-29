@@ -67,12 +67,18 @@ public class UpdateCheckerService extends Service {
             try {
 
                 mConctMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-                NetworkInfo netInfo = mConctMgr.getActiveNetworkInfo();
-                
-                int netType = netInfo.getType();
-                if(netInfo.isConnected() && (netType == ConnectivityManager.TYPE_ETHERNET || netType == ConnectivityManager.TYPE_WIFI || netType == ConnectivityManager.TYPE_WIMAX) ){
-                    Log.d(null, "-- -- connected " + netType);
+                if(mConctMgr != null){
+                    NetworkInfo netInfo = mConctMgr.getActiveNetworkInfo();
+                    
+                    if(netInfo != null){
+                        int netType = netInfo.getType();
+                        if(netInfo.isConnected() && (netType == ConnectivityManager.TYPE_ETHERNET || netType == ConnectivityManager.TYPE_WIFI || netType == ConnectivityManager.TYPE_WIMAX) ){
+                            Log.d(null, "-- -- connected " + netType);
+                        }
+                    }
                 }
+                
+                
                 Thread workingthread = new Thread(new StopSelfThread());
                 workingthread.start();
             } catch (Exception e) {
