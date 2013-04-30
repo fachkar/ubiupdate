@@ -25,6 +25,8 @@
         android:layout_gravity="fill_horizontal"
         android:layout_marginTop="4dip"
         android:max="100"
+        android:progress="0"
+        android:secondaryProgress="0"    
         android:progressDrawable="@drawable/data_usage_bar" />
 
     <LinearLayout

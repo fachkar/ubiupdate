@@ -21,6 +21,7 @@ import android.content.SharedPreferences.Editor;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 public class UbiUpdateActivity extends Activity {
@@ -34,6 +35,9 @@ public class UbiUpdateActivity extends Activity {
     public volatile TextView mUpdateStatusTitleTextView = null;
     public volatile Long mServerDate, mServerTime;
     public volatile CountDownTimer mCountDownTimer = null;
+    public volatile ProgressBar mProgressBar = null;
+    public volatile boolean mIndeterminate = false;
+    public volatile int mPrimaryProgress;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +47,7 @@ public class UbiUpdateActivity extends Activity {
         mHandler = new Handler();
         mUpdateStatusTextView = (TextView) findViewById(R.id.update_status_text);
         mUpdateStatusTitleTextView = (TextView) findViewById(R.id.update_status_title);
+        mProgressBar = (ProgressBar) findViewById(R.id.update_status_progress_bar);
         mUpdtPrefrns = getSharedPreferences(mPrefFile, Context.MODE_PRIVATE);
         Thread workingthread = new Thread(new UbiUpdateActivityCreateThread());
         workingthread.start();
@@ -53,6 +58,15 @@ public class UbiUpdateActivity extends Activity {
         super.onResume();
         Thread workingthread = new Thread(new UbiUpdateActivityResumeThread());
         workingthread.start();
+    }
+
+    @Override
+    protected void onDestroy() {
+        mIndeterminate = false;
+        if (mCountDownTimer != null) {
+            mCountDownTimer.cancel();
+            mCountDownTimer = null;
+        }
     }
 
     class UbiUpdateActivityCreateThread implements Runnable {
@@ -97,6 +111,7 @@ public class UbiUpdateActivity extends Activity {
                         }
 
                     });
+
                 } else {
                     Log.e(this.getClass().getName(), "UbiUpdateActivityResumeThread, mUpdtPrefrns = null ..");
                 }
@@ -130,6 +145,10 @@ public class UbiUpdateActivity extends Activity {
                     }
 
                 });
+
+                mIndeterminate = true;
+                Thread updateProgressthread = new Thread(new UpdateindeterminateThread());
+                updateProgressthread.start();
 
                 String tmpIncremental = "eng.firas.20130418.140319"; // Build.VERSION.INCREMENTAL;
                 if (tmpIncremental.length() > 16) {
@@ -165,6 +184,8 @@ public class UbiUpdateActivity extends Activity {
                                     if (tmpServerDateIncr >= tmpDateIncr) {
                                         if (tmpServertimeIncr > tmptimeIncr) {
                                             Log.d(null, " -- -- there is newer version:" + tmpServerDateIncr + "." + tmpServertimeIncr);
+
+                                            mIndeterminate = false;
 
                                         } else {
                                             Log.d(null, " -- -- there is no newer version of:" + tmpServerDateIncr + "." + tmpServertimeIncr);
@@ -241,6 +262,8 @@ public class UbiUpdateActivity extends Activity {
         public void run() {
             try {
                 Log.d(null, "StoreStatusTitleMsgThread, mUpdtStatsTitlStr:" + mUpdtStatsTitlStr + ", mUpdtStatsStr:" + mUpdtStatsStr);
+
+                mIndeterminate = false;
                 Editor updatePrefsEditor = mUpdtPrefrns.edit();
                 updatePrefsEditor.putString("titleKey", mUpdtStatsTitlStr);
                 updatePrefsEditor.putString("msgKey", mUpdtStatsStr);
@@ -273,6 +296,8 @@ public class UbiUpdateActivity extends Activity {
         public void run() {
             try {
                 Log.d(null, "UpdateOnlyErrorStatusTitleMsgThread, mUpdtStatsTitlStr:" + mUpdtStatsTitlStr + ", mUpdtStatsStr:" + mUpdtStatsStr);
+
+                mIndeterminate = false;
                 mUpdateStatusTitleTextView.setText(mUpdtStatsTitlStr);
                 mUpdateStatusTextView.setText(mUpdtStatsStr);
 
@@ -294,6 +319,45 @@ public class UbiUpdateActivity extends Activity {
 
                     }
                 }.start();
+
+            } catch (Exception e) {
+                Log.e(this.getClass().getName(), "Exception", e);
+            }
+        }
+    }
+
+    class UpdateindeterminateThread implements Runnable {
+        @Override
+        public void run() {
+            try {
+                mPrimaryProgress = 20;
+                while (mIndeterminate) {
+                    mHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            mProgressBar.setProgress(mPrimaryProgress - 20);
+                            mProgressBar.setSecondaryProgress(mPrimaryProgress);
+                        }
+
+                    });
+
+                    Thread.sleep(200);
+
+                    mPrimaryProgress += 5;
+                    if (mPrimaryProgress > 100) {
+                        mPrimaryProgress = 20;
+                    }
+
+                }
+
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        mProgressBar.setProgress(0);
+                        mProgressBar.setSecondaryProgress(0);
+                    }
+
+                });
 
             } catch (Exception e) {
                 Log.e(this.getClass().getName(), "Exception", e);
