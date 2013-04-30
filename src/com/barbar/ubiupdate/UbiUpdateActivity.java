@@ -12,6 +12,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.app.Activity;
 import android.content.Context;
@@ -32,6 +33,7 @@ public class UbiUpdateActivity extends Activity {
     public volatile TextView mUpdateStatusTextView = null;
     public volatile TextView mUpdateStatusTitleTextView = null;
     public volatile Long mServerDate, mServerTime;
+    public volatile CountDownTimer mCountDownTimer = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,8 +47,7 @@ public class UbiUpdateActivity extends Activity {
         Thread workingthread = new Thread(new UbiUpdateActivityCreateThread());
         workingthread.start();
     }
-    
-    
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -78,14 +79,13 @@ public class UbiUpdateActivity extends Activity {
             }
         }
     }
-    
-    
+
     class UbiUpdateActivityResumeThread implements Runnable {
 
         @Override
         public void run() {
             try {
-                if(mUpdtPrefrns != null){
+                if (mUpdtPrefrns != null) {
                     mServerDate = Long.parseLong(mUpdtPrefrns.getString("srvrD8", "20130101"));
                     mServerTime = Long.parseLong(mUpdtPrefrns.getString("srvrTime", "000000"));
 
@@ -97,10 +97,9 @@ public class UbiUpdateActivity extends Activity {
                         }
 
                     });
-                }else{
+                } else {
                     Log.e(this.getClass().getName(), "UbiUpdateActivityResumeThread, mUpdtPrefrns = null ..");
                 }
-                
 
             } catch (Exception e) {
                 Log.e(this.getClass().getName(), "Exception", e);
@@ -117,6 +116,11 @@ public class UbiUpdateActivity extends Activity {
             BufferedReader reader = null;
             String output = null;
 
+            if (mCountDownTimer != null) {
+                mCountDownTimer.cancel();
+                mCountDownTimer = null;
+            }
+
             try {
                 mHandler.post(new Runnable() {
                     @Override
@@ -126,7 +130,7 @@ public class UbiUpdateActivity extends Activity {
                     }
 
                 });
-                
+
                 String tmpIncremental = "eng.firas.20130418.140319"; // Build.VERSION.INCREMENTAL;
                 if (tmpIncremental.length() > 16) {
                     String tmpDtIncremental = tmpIncremental.substring(tmpIncremental.length() - 15);
@@ -140,8 +144,6 @@ public class UbiUpdateActivity extends Activity {
                         if (netInfo != null) {
                             int netType = netInfo.getType();
                             if (netInfo.isConnected() && (netType == ConnectivityManager.TYPE_ETHERNET || netType == ConnectivityManager.TYPE_WIFI || netType == ConnectivityManager.TYPE_WIMAX)) {
-                                Log.d(null, "-- -- connected " + netType);
-
                                 socket = new Socket("10.0.0.165", Integer.parseInt("9998"));
                                 writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
                                 reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -156,21 +158,21 @@ public class UbiUpdateActivity extends Activity {
 
                                 if (!output.isEmpty()) {
                                     Log.d(null, " -- -- got incremental:" + output + ", of length:" + output.length());
-                                    String tmpServerDtIncremental = tmpIncremental.substring(tmpIncremental.length() - 15);
+                                    String tmpServerDtIncremental = output.substring(output.length() - 15);
                                     long tmpServerDateIncr = Long.parseLong(tmpServerDtIncremental.substring(0, 8));
                                     long tmpServertimeIncr = Long.parseLong(tmpServerDtIncremental.substring(9, 15));
 
                                     if (tmpServerDateIncr >= tmpDateIncr) {
                                         if (tmpServertimeIncr > tmptimeIncr) {
                                             Log.d(null, " -- -- there is newer version:" + tmpServerDateIncr + "." + tmpServertimeIncr);
-                                            
+
                                         } else {
                                             Log.d(null, " -- -- there is no newer version of:" + tmpServerDateIncr + "." + tmpServertimeIncr);
                                             Calendar mCalendar = Calendar.getInstance();
                                             mCalendar.setTimeInMillis(System.currentTimeMillis());
                                             Log.d(null, "data now is :" + mCalendar.getTime());
-                                            
-                                            Thread workingthread = new Thread(new UpdateStatusTitleMsgThread("Your System is currently up to date","Last checked for update " + mCalendar.getTime() ));
+
+                                            Thread workingthread = new Thread(new StoreStatusTitleMsgThread("Your System is currently up to date", "Last checked for update " + mCalendar.getTime()));
                                             workingthread.start();
                                         }
                                     } else {
@@ -178,19 +180,13 @@ public class UbiUpdateActivity extends Activity {
                                         Calendar mCalendar = Calendar.getInstance();
                                         mCalendar.setTimeInMillis(System.currentTimeMillis());
                                         Log.d(null, "data now is :" + mCalendar.getTime());
-                                        
-                                        Thread workingthread = new Thread(new UpdateStatusTitleMsgThread("Your System is currently up to date","Last checked for update " + mCalendar.getTime() ));
+
+                                        Thread workingthread = new Thread(new StoreStatusTitleMsgThread("Your System is currently up to date", "Last checked for update " + mCalendar.getTime()));
                                         workingthread.start();
                                     }
-                                }else{
-                                    mHandler.post(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            mCheckNowButton.setEnabled(true);
-                                            mUpdateStatusTextView.setText(mUpdtPrefrns.getString("msgKey", "Error connecting to server .."));
-                                        }
-
-                                    });
+                                } else {
+                                    mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Server Connection Error",
+                                                    " Server is either overloaded or unreachable at the moment .. 'Check now' button will be re-enabled in 10 seconds"));
                                 }
 
                                 try {
@@ -210,66 +206,33 @@ public class UbiUpdateActivity extends Activity {
                                 }
 
                             }
-                        }else{
-                            mHandler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    mCheckNowButton.setEnabled(true);
-                                    mUpdateStatusTextView.setText(mUpdtPrefrns.getString("msgKey", "Error connecting to server .."));
-                                }
-
-                            });
+                        } else {
+                            mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Internet Connection Error",
+                                            "This action can only be performed via Wifi, WiMax or Ethernet connection. Please Enable either of ther previously mentioned connection types and try again .. 'Check now' button will be re-enabled in 10 seconds"));
                         }
-                    }else{
-                        mHandler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                mCheckNowButton.setEnabled(true);
-                                mUpdateStatusTextView.setText(mUpdtPrefrns.getString("msgKey", "Error connecting to server .."));
-                            }
-
-                        });
+                    } else {
+                        mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Internet Connection Error", "Connectivity Service error  .. 'Check now' button will be re-enabled in 10 seconds"));
                     }
+                } else {
+                    mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("System Error", "Failed to get current system version .. 'Check now' button will be re-enabled in 10 seconds"));
                 }
 
             } catch (ConnectException e) {
                 Log.e(this.getClass().getName(), "NumberFormatException", e);
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        mCheckNowButton.setEnabled(true);
-                        mUpdateStatusTextView.setText(mUpdtPrefrns.getString("msgKey", "Error connecting to server .."));
-                    }
-
-                });
+                mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "Communication exception occurred. " + e.getLocalizedMessage() + " .. 'Check now' button will be re-enabled in 10 seconds"));
             } catch (NumberFormatException e) {
                 Log.e(this.getClass().getName(), "NumberFormatException", e);
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        mCheckNowButton.setEnabled(true);
-                        mUpdateStatusTextView.setText(mUpdtPrefrns.getString("msgKey", "Error connecting to server .."));
-                    }
-
-                });
+                mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "Communication exception occurred. " + e.getLocalizedMessage() + " .. 'Check now' button will be re-enabled in 10 seconds"));
             } catch (Exception e) {
-                Log.e(this.getClass().getName(), "Exception", e);
-                mHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        mCheckNowButton.setEnabled(true);
-                        mUpdateStatusTextView.setText(mUpdtPrefrns.getString("msgKey", "Error connecting to server .."));
-                    }
-
-                });
+                mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "General exception occurred. " + e.getLocalizedMessage() + " .. 'Check now' button will be re-enabled in 10 seconds"));
             }
         }
     }
 
-    class UpdateStatusTitleMsgThread implements Runnable {
+    class StoreStatusTitleMsgThread implements Runnable {
         String mUpdtStatsTitlStr, mUpdtStatsStr;
 
-        public UpdateStatusTitleMsgThread(String sUpdtStatsTitlStr, String sUpdtStatsStr) {
+        public StoreStatusTitleMsgThread(String sUpdtStatsTitlStr, String sUpdtStatsStr) {
             mUpdtStatsTitlStr = sUpdtStatsTitlStr;
             mUpdtStatsStr = sUpdtStatsStr;
         }
@@ -277,7 +240,7 @@ public class UbiUpdateActivity extends Activity {
         @Override
         public void run() {
             try {
-                Log.d(null, "UpdateStatusTitleMsgThread, mUpdtStatsTitlStr:" + mUpdtStatsTitlStr + ", mUpdtStatsStr:" + mUpdtStatsStr);
+                Log.d(null, "StoreStatusTitleMsgThread, mUpdtStatsTitlStr:" + mUpdtStatsTitlStr + ", mUpdtStatsStr:" + mUpdtStatsStr);
                 Editor updatePrefsEditor = mUpdtPrefrns.edit();
                 updatePrefsEditor.putString("titleKey", mUpdtStatsTitlStr);
                 updatePrefsEditor.putString("msgKey", mUpdtStatsStr);
@@ -292,6 +255,46 @@ public class UbiUpdateActivity extends Activity {
                     }
 
                 });
+            } catch (Exception e) {
+                Log.e(this.getClass().getName(), "Exception", e);
+            }
+        }
+    }
+
+    class UpdateOnlyErrorStatusTitleMsgThread implements Runnable {
+        String mUpdtStatsTitlStr, mUpdtStatsStr;
+
+        public UpdateOnlyErrorStatusTitleMsgThread(String sUpdtStatsTitlStr, String sUpdtStatsStr) {
+            mUpdtStatsTitlStr = sUpdtStatsTitlStr;
+            mUpdtStatsStr = sUpdtStatsStr;
+        }
+
+        @Override
+        public void run() {
+            try {
+                Log.d(null, "UpdateOnlyErrorStatusTitleMsgThread, mUpdtStatsTitlStr:" + mUpdtStatsTitlStr + ", mUpdtStatsStr:" + mUpdtStatsStr);
+                mUpdateStatusTitleTextView.setText(mUpdtStatsTitlStr);
+                mUpdateStatusTextView.setText(mUpdtStatsStr);
+
+                if (mCountDownTimer != null) {
+                    mCountDownTimer.cancel();
+                    mCountDownTimer = null;
+                }
+
+                mCountDownTimer = new CountDownTimer(10000, 30000) {
+
+                    public void onTick(long millisUntilFinished) {
+                        return;
+                    }
+
+                    public void onFinish() {
+                        mUpdateStatusTitleTextView.setText(mUpdtPrefrns.getString("titleKey", "Your System is currently up to date"));
+                        mUpdateStatusTextView.setText(mUpdtPrefrns.getString("msgKey", "Last checked for update unknown."));
+                        mCheckNowButton.setEnabled(true);
+
+                    }
+                }.start();
+
             } catch (Exception e) {
                 Log.e(this.getClass().getName(), "Exception", e);
             }
