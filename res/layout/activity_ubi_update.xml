@@ -70,6 +70,18 @@
                 android:gravity="center"
                 android:textAppearance="?android:attr/textAppearanceMedium"
                 android:text="@string/check_now_text" />
+            <Button
+                android:id="@+id/download_now_button"
+                android:layout_width="120dip"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|right"
+                android:layout_marginRight="12dip"
+                android:layout_marginBottom="12dip"
+                android:layout_marginTop="20dip"
+                android:gravity="center"
+                android:visibility="gone"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:text="@string/download_now_text" />
         </FrameLayout>
     </LinearLayout>
 
