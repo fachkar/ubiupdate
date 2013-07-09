@@ -133,6 +133,8 @@ public class UbiUpdateActivity extends Activity {
                                     public void run() {
                                         mUpdateStatusTitleTextView.setText("Update Available");
                                         mUpdateStatusTextView.setText("New update " + String.valueOf(mServerDate) + "." + String.valueOf(mServerTime) + " .. Last checked for update " + mLastServerD8TimeCheck);
+                                        mCheckNowButton.setVisibility(View.GONE);
+                                        mDownloadNowButton.setVisibility(View.VISIBLE);
                                     }
                                 });
                             } else {
@@ -237,7 +239,7 @@ public class UbiUpdateActivity extends Activity {
                         if (netInfo != null) {
                             int netType = netInfo.getType();
                             if (netInfo.isConnected() && (netType == ConnectivityManager.TYPE_ETHERNET || netType == ConnectivityManager.TYPE_WIFI || netType == ConnectivityManager.TYPE_WIMAX)) {
-                                socket = new Socket("10.0.0.165", Integer.parseInt("9998"));
+                                socket = new Socket("10.0.0.66", Integer.parseInt("9998"));
                                 writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
                                 reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
@@ -280,6 +282,8 @@ public class UbiUpdateActivity extends Activity {
                                                 public void run() {
                                                     mUpdateStatusTitleTextView.setText("Update Available");
                                                     mUpdateStatusTextView.setText("New update " + String.valueOf(mServerDate) + "." + String.valueOf(mServerTime) + " .. Last checked for update " + mLastServerD8TimeCheck);
+                                                    mCheckNowButton.setVisibility(View.GONE);
+                                                    mDownloadNowButton.setVisibility(View.VISIBLE);
                                                 }
 
                                             });
@@ -411,15 +415,210 @@ public class UbiUpdateActivity extends Activity {
 
         @Override
         public void run() {
+            Socket socket = null;
+            BufferedWriter writer = null;
+            BufferedReader reader = null;
+            String output = null;
 
+            if (mCountDownTimer != null) {
+                mCountDownTimer.cancel();
+                mCountDownTimer = null;
+            }
             try {
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        mCheckNowButton.setEnabled(false);
+                        mUpdateStatusTextView.setText("Checking please wait .. ");
+                    }
 
+                });
+                
+                mIndeterminate = true;
+                Thread updateProgressthread = new Thread(new UpdateindeterminateThread());
+                updateProgressthread.start();
+
+                String tmpIncremental = "eng.firas.20130418.140319"; // Build.VERSION.INCREMENTAL;
+                if (tmpIncremental.length() > 16) {
+                    String tmpDtIncremental = tmpIncremental.substring(tmpIncremental.length() - 15);
+                    long tmpDateIncr = Long.parseLong(tmpDtIncremental.substring(0, 8));
+                    long tmptimeIncr = Long.parseLong(tmpDtIncremental.substring(9, 15));
+
+                    mConctMgr = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                    if (mConctMgr != null) {
+                        NetworkInfo netInfo = mConctMgr.getActiveNetworkInfo();
+
+                        if (netInfo != null) {
+                            int netType = netInfo.getType();
+                            if (netInfo.isConnected() && (netType == ConnectivityManager.TYPE_ETHERNET || netType == ConnectivityManager.TYPE_WIFI || netType == ConnectivityManager.TYPE_WIMAX)) {
+                                socket = new Socket("10.0.0.66", Integer.parseInt("9998"));
+                                writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+                                reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+                                // send input terminated with \n
+                                String input = "getincremental";
+                                writer.write(input + "\n", 0, input.length() + 1);
+                                writer.flush();
+
+                                // read back output
+                                output = reader.readLine();
+
+                                if (!output.isEmpty()) {
+                                    Log.d(null, " -- -- got incremental:" + output + ", of length:" + output.length());
+                                    String tmpServerDtIncremental = output.substring(output.length() - 15);
+                                    long tmpServerDateIncr = Long.parseLong(tmpServerDtIncremental.substring(0, 8));
+                                    long tmpServertimeIncr = Long.parseLong(tmpServerDtIncremental.substring(9, 15));
+
+                                    if (tmpServerDateIncr >= tmpDateIncr) {
+                                        if (tmpServertimeIncr > tmptimeIncr) {
+                                            Log.d(null, " -- -- there is newer version:" + tmpServerDateIncr + "." + tmpServertimeIncr);
+
+                                            Calendar mCalendar = Calendar.getInstance();
+                                            mCalendar.setTimeInMillis(System.currentTimeMillis());
+                                            Log.d(null, "data now is :" + mCalendar.getTime());
+
+                                            Editor updatePrefsEditor = mUpdtPrefrns.edit();
+                                            updatePrefsEditor.putLong("srvrD8", tmpServerDateIncr);
+                                            updatePrefsEditor.putLong("srvrTime", tmpServertimeIncr);
+                                            mLastServerD8TimeCheck = mCalendar.getTime().toString();
+                                            updatePrefsEditor.putString("lastCheckKey", mLastServerD8TimeCheck);
+                                            updatePrefsEditor.commit();
+
+                                            if (mCountDownTimer != null) {
+                                                mCountDownTimer.cancel();
+                                                mCountDownTimer = null;
+                                            }
+
+                                            mHandler.post(new Runnable() {
+                                                @Override
+                                                public void run() {
+                                                    mUpdateStatusTitleTextView.setText("Update Available");
+                                                    mUpdateStatusTextView.setText("New update " + String.valueOf(mServerDate) + "." + String.valueOf(mServerTime) + " .. Last checked for update " + mLastServerD8TimeCheck);
+                                                    mCheckNowButton.setVisibility(View.GONE);
+                                                    mDownloadNowButton.setVisibility(View.VISIBLE);
+                                                }
+
+                                            });
+
+                                            mIndeterminate = false;
+
+                                            return;
+
+                                        } else {
+                                            Log.d(null, " -- -- there is no newer version of:" + tmpServerDateIncr + "." + tmpServertimeIncr);
+                                            Calendar mCalendar = Calendar.getInstance();
+                                            mCalendar.setTimeInMillis(System.currentTimeMillis());
+                                            Log.d(null, "data now is :" + mCalendar.getTime());
+
+                                            Editor updatePrefsEditor = mUpdtPrefrns.edit();
+                                            updatePrefsEditor.putLong("srvrD8", tmpServerDateIncr);
+                                            updatePrefsEditor.putLong("srvrTime", tmpServertimeIncr);
+                                            mLastServerD8TimeCheck = mCalendar.getTime().toString();
+                                            updatePrefsEditor.putString("lastCheckKey", mLastServerD8TimeCheck);
+                                            updatePrefsEditor.commit();
+
+                                            if (mCountDownTimer != null) {
+                                                mCountDownTimer.cancel();
+                                                mCountDownTimer = null;
+                                            }
+
+                                            mHandler.post(new Runnable() {
+                                                @Override
+                                                public void run() {
+                                                    mUpdateStatusTitleTextView.setText("Your system is currently up to date");
+                                                    mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
+                                                    mCheckNowButton.setEnabled(true);
+                                                }
+
+                                            });
+
+                                            mIndeterminate = false;
+
+                                            return;
+                                        }
+                                    } else {
+                                        Log.d(null, " -- -- there is no newer version of:" + tmpServerDateIncr + "." + tmpServertimeIncr);
+                                        Calendar mCalendar = Calendar.getInstance();
+                                        mCalendar.setTimeInMillis(System.currentTimeMillis());
+                                        Log.d(null, "data now is :" + mCalendar.getTime());
+
+                                        Editor updatePrefsEditor = mUpdtPrefrns.edit();
+                                        updatePrefsEditor.putLong("srvrD8", tmpServerDateIncr);
+                                        updatePrefsEditor.putLong("srvrTime", tmpServertimeIncr);
+                                        mLastServerD8TimeCheck = mCalendar.getTime().toString();
+                                        updatePrefsEditor.putString("lastCheckKey", mLastServerD8TimeCheck);
+                                        updatePrefsEditor.commit();
+
+                                        if (mCountDownTimer != null) {
+                                            mCountDownTimer.cancel();
+                                            mCountDownTimer = null;
+                                        }
+
+                                        mHandler.post(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                mUpdateStatusTitleTextView.setText("Your system is currently up to date");
+                                                mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
+                                                mCheckNowButton.setEnabled(true);
+                                            }
+
+                                        });
+
+                                        mIndeterminate = false;
+
+                                        return;
+                                    }
+                                } else {
+                                    mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Server Connection Error",
+                                                    " Server is either overloaded or unreachable at the moment .. \n\n'Download now' button will be re-enabled in 10 seconds"));
+                                }
+
+                                try {
+                                    writer.close();
+                                } catch (IOException e) {
+                                    Log.e(this.getClass().getName(), "Exception", e);
+                                }
+                                try {
+                                    reader.close();
+                                } catch (IOException e) {
+                                    Log.e(this.getClass().getName(), "Exception", e);
+                                }
+                                try {
+                                    socket.close();
+                                } catch (IOException e) {
+                                    Log.e(this.getClass().getName(), "Exception", e);
+                                }
+
+                            }
+                        } else {
+                            mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Internet Connection Error",
+                                            "This action can only be performed via Wifi, WiMax or Ethernet connection. Please Enable either of ther previously mentioned connection types and try again .. \n\n'Download now' button will be re-enabled in 10 seconds"));
+                        }
+                    } else {
+                        mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Internet Connection Error", "Connectivity Service error  .. \n\n'Download now' button will be re-enabled in 10 seconds"));
+                    }
+                } else {
+                    mHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            mUpdateStatusTitleTextView.setText("System Error");
+                            mUpdateStatusTextView.setText("Failed to get current system version ..");
+                            mDownloadNowButton.setVisibility(View.GONE);
+                            mCheckNowButton.setEnabled(false);
+                        }
+                    });
+                }
+
+            } catch (ConnectException e) {
+                Log.e(this.getClass().getName(), "NumberFormatException", e);
+                mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "Communication exception occurred. " + e.getLocalizedMessage()
+                                + " .. \n\n'Check now' button will be re-enabled in 10 seconds"));
             } catch (NumberFormatException e) {
                 Log.e(this.getClass().getName(), "NumberFormatException", e);
                 mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "Communication exception occurred. " + e.getLocalizedMessage()
                                 + " .. \n\n'Check now' button will be re-enabled in 10 seconds"));
             } catch (Exception e) {
-                mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "General exception occurred. " + e.getLocalizedMessage() + " .. \n\n'Check now' button will be re-enabled in 10 seconds"));
+                mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "General exception occurred. " + e.getLocalizedMessage() + " .. \n\n'Download now' button will be re-enabled in 10 seconds"));
             }
         }
     }
@@ -462,6 +661,8 @@ public class UbiUpdateActivity extends Activity {
                                 if (mServerTime > tmptimeIncr) {
                                     mUpdateStatusTitleTextView.setText("Update Available");
                                     mUpdateStatusTextView.setText("New update " + String.valueOf(mServerDate) + "." + String.valueOf(mServerTime) + ". Last checked for update " + mLastServerD8TimeCheck);
+                                    mCheckNowButton.setVisibility(View.GONE);
+                                    mDownloadNowButton.setVisibility(View.VISIBLE);
                                 } else {
                                     mUpdateStatusTitleTextView.setText("Your system is currently up to date");
                                     mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
