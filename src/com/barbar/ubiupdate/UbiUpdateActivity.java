@@ -3,6 +3,7 @@ package com.barbar.ubiupdate;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -36,11 +37,13 @@ public class UbiUpdateActivity extends Activity {
     public volatile Handler mHandler = null;
     public volatile Button mCheckNowButton = null;
     public volatile Button mDownloadNowButton = null;
+    public volatile Button mInstallNowButton = null;
     public volatile Context mContext = null;
     public volatile SharedPreferences mUpdtPrefrns = null;
     public volatile TextView mUpdateStatusTextView = null;
     public volatile TextView mUpdateStatusTitleTextView = null;
     public volatile String mLastServerD8TimeCheck = null;
+    public volatile String mLastServerMD5 = null;
     public volatile long mServerDate, mServerTime;
     public volatile CountDownTimer mCountDownTimer = null;
     public volatile ProgressBar mProgressBar = null;
@@ -111,6 +114,18 @@ public class UbiUpdateActivity extends Activity {
                     });
                 }
 
+                mInstallNowButton = (Button) findViewById(R.id.install_now_button);
+                if (mInstallNowButton != null) {
+                    mInstallNowButton.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            Thread workingthread = new Thread(new InstallUpdateThread());
+                            workingthread.start();
+
+                        }
+                    });
+                }
+
             } catch (Exception e) {
                 Log.e(this.getClass().getName(), "Exception", e);
             }
@@ -126,24 +141,69 @@ public class UbiUpdateActivity extends Activity {
                     mServerDate = mUpdtPrefrns.getLong("srvrD8", 20130101);
                     mServerTime = mUpdtPrefrns.getLong("srvrTime", 000000);
                     mLastServerD8TimeCheck = mUpdtPrefrns.getString("lastCheckKey", "unknown");
+                    mLastServerMD5 = mUpdtPrefrns.getString("lastMD5", "unknown");
 
-                    String tmpIncremental = "eng.firas.20130418.140319"; // Build.VERSION.INCREMENTAL;
-                    if (tmpIncremental.length() > 16) {
-                        String tmpDtIncremental = tmpIncremental.substring(tmpIncremental.length() - 15);
-                        long tmpDateIncr = Long.parseLong(tmpDtIncremental.substring(0, 8));
-                        long tmptimeIncr = Long.parseLong(tmpDtIncremental.substring(9, 15));
+                    File dwnldfile = new File(getResources().getString(R.string.download_path));
 
-                        if (mServerDate >= tmpDateIncr) {
-                            if (mServerTime > tmptimeIncr) {
-                                mHandler.post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        mUpdateStatusTitleTextView.setText("Update Available");
-                                        mUpdateStatusTextView.setText("New update " + String.valueOf(mServerDate) + "." + String.valueOf(mServerTime) + " .. Last checked for update " + mLastServerD8TimeCheck);
-                                        mCheckNowButton.setVisibility(View.GONE);
-                                        mDownloadNowButton.setVisibility(View.VISIBLE);
-                                    }
-                                });
+                    if (dwnldfile.exists() && !mLastServerMD5.isEmpty() && mLastServerMD5 != "unkown") {
+                        mHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                mUpdateStatusTitleTextView.setText("Update Available");
+                                mUpdateStatusTextView.setText("New downloaded update available .. checking MD5 checksum ..");
+                                mCheckNowButton.setVisibility(View.GONE);
+                                mDownloadNowButton.setVisibility(View.GONE);
+                                mInstallNowButton.setVisibility(View.VISIBLE);
+                                mInstallNowButton.setEnabled(false);
+                            }
+                        });
+
+                        if (MD5.checkMd5(mLastServerMD5, getResources().getString(R.string.download_path))) {
+                            Log.d(this.getClass().getName(), "md5 check ok");
+
+                            mHandler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    mUpdateStatusTextView.setText("MD5 checksum complete .. ready to install");
+                                    mInstallNowButton.setVisibility(View.VISIBLE);
+                                    mInstallNowButton.setEnabled(true);
+                                }
+                            });
+
+                        } else {
+                            Log.e(this.getClass().getName(), "failed md5");
+                            mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Update File Error",
+                                            " Downloaded update file failed md5 checksum, most likely error occurred while downloading .. \n\n'Download now' button will be re-enabled in 10 seconds"));
+                        }
+                    } else {
+                        String tmpIncremental = "eng.firas.20130418.140319"; // Build.VERSION.INCREMENTAL;
+                        if (tmpIncremental.length() > 16) {
+                            String tmpDtIncremental = tmpIncremental.substring(tmpIncremental.length() - 15);
+                            long tmpDateIncr = Long.parseLong(tmpDtIncremental.substring(0, 8));
+                            long tmptimeIncr = Long.parseLong(tmpDtIncremental.substring(9, 15));
+
+                            if (mServerDate >= tmpDateIncr) {
+                                if (mServerTime > tmptimeIncr) {
+                                    mHandler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            mUpdateStatusTitleTextView.setText("Update Available");
+                                            mUpdateStatusTextView.setText("New update " + String.valueOf(mServerDate) + "." + String.valueOf(mServerTime) + " .. Last checked for update " + mLastServerD8TimeCheck);
+                                            mCheckNowButton.setVisibility(View.GONE);
+                                            mInstallNowButton.setVisibility(View.GONE);
+                                            mDownloadNowButton.setVisibility(View.VISIBLE);
+                                            mDownloadNowButton.setEnabled(true);
+                                        }
+                                    });
+                                } else {
+                                    mHandler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            mUpdateStatusTitleTextView.setText("Your system is currently up to date");
+                                            mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
+                                        }
+                                    });
+                                }
                             } else {
                                 mHandler.post(new Runnable() {
                                     @Override
@@ -153,28 +213,22 @@ public class UbiUpdateActivity extends Activity {
                                     }
                                 });
                             }
+
                         } else {
+
                             mHandler.post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    mUpdateStatusTitleTextView.setText("Your system is currently up to date");
-                                    mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
+                                    mUpdateStatusTitleTextView.setText("System Error");
+                                    mUpdateStatusTextView.setText("Failed to get current system version ..");
+                                    mDownloadNowButton.setVisibility(View.GONE);
+                                    mInstallNowButton.setVisibility(View.GONE);
+                                    mCheckNowButton.setVisibility(View.VISIBLE);
+                                    mCheckNowButton.setEnabled(false);
                                 }
                             });
+
                         }
-
-                    } else {
-
-                        mHandler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                mUpdateStatusTitleTextView.setText("System Error");
-                                mUpdateStatusTextView.setText("Failed to get current system version ..");
-                                mDownloadNowButton.setVisibility(View.GONE);
-                                mCheckNowButton.setEnabled(false);
-                            }
-                        });
-
                     }
 
                 } else {
@@ -185,6 +239,8 @@ public class UbiUpdateActivity extends Activity {
                             mUpdateStatusTitleTextView.setText("System Error");
                             mUpdateStatusTextView.setText("Failed to get current system version ..");
                             mDownloadNowButton.setVisibility(View.GONE);
+                            mInstallNowButton.setVisibility(View.GONE);
+                            mCheckNowButton.setVisibility(View.VISIBLE);
                             mCheckNowButton.setEnabled(false);
                         }
                     });
@@ -198,6 +254,8 @@ public class UbiUpdateActivity extends Activity {
                         mUpdateStatusTitleTextView.setText("System Error");
                         mUpdateStatusTextView.setText("Failed to get current system version ..");
                         mDownloadNowButton.setVisibility(View.GONE);
+                        mInstallNowButton.setVisibility(View.GONE);
+                        mCheckNowButton.setVisibility(View.VISIBLE);
                         mCheckNowButton.setEnabled(false);
                     }
                 });
@@ -223,6 +281,9 @@ public class UbiUpdateActivity extends Activity {
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
+                        mInstallNowButton.setVisibility(View.GONE);
+                        mDownloadNowButton.setVisibility(View.GONE);
+                        mCheckNowButton.setVisibility(View.VISIBLE);
                         mCheckNowButton.setEnabled(false);
                         mUpdateStatusTextView.setText("Checking please wait .. ");
                     }
@@ -291,6 +352,7 @@ public class UbiUpdateActivity extends Activity {
                                                     mUpdateStatusTextView
                                                                     .setText("New update " + String.valueOf(mServerDate) + "." + String.valueOf(mServerTime) + " .. Last checked for update " + mLastServerD8TimeCheck);
                                                     mCheckNowButton.setVisibility(View.GONE);
+                                                    mInstallNowButton.setVisibility(View.GONE);
                                                     mDownloadNowButton.setVisibility(View.VISIBLE);
                                                 }
 
@@ -323,6 +385,9 @@ public class UbiUpdateActivity extends Activity {
                                                 public void run() {
                                                     mUpdateStatusTitleTextView.setText("Your system is currently up to date");
                                                     mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
+                                                    mInstallNowButton.setVisibility(View.GONE);
+                                                    mDownloadNowButton.setVisibility(View.GONE);
+                                                    mCheckNowButton.setVisibility(View.VISIBLE);
                                                     mCheckNowButton.setEnabled(true);
                                                 }
 
@@ -355,6 +420,10 @@ public class UbiUpdateActivity extends Activity {
                                             public void run() {
                                                 mUpdateStatusTitleTextView.setText("Your system is currently up to date");
                                                 mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
+
+                                                mInstallNowButton.setVisibility(View.GONE);
+                                                mDownloadNowButton.setVisibility(View.GONE);
+                                                mCheckNowButton.setVisibility(View.VISIBLE);
                                                 mCheckNowButton.setEnabled(true);
                                             }
 
@@ -406,7 +475,9 @@ public class UbiUpdateActivity extends Activity {
                         public void run() {
                             mUpdateStatusTitleTextView.setText("System Error");
                             mUpdateStatusTextView.setText("Failed to get current system version ..");
+                            mInstallNowButton.setVisibility(View.GONE);
                             mDownloadNowButton.setVisibility(View.GONE);
+                            mCheckNowButton.setVisibility(View.VISIBLE);
                             mCheckNowButton.setEnabled(false);
                         }
                     });
@@ -443,6 +514,9 @@ public class UbiUpdateActivity extends Activity {
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
+                        mInstallNowButton.setVisibility(View.GONE);
+                        mCheckNowButton.setVisibility(View.GONE);
+                        mDownloadNowButton.setVisibility(View.VISIBLE);
                         mDownloadNowButton.setEnabled(false);
                         mUpdateStatusTextView.setText("Checking please wait .. ");
                     }
@@ -484,7 +558,7 @@ public class UbiUpdateActivity extends Activity {
                                                 String dwnlodVersion = stok.nextToken();
                                                 URL url = new URL(stok.nextToken());
                                                 String md5 = stok.nextToken();
-                                                
+
                                                 String tmpServerDtIncremental = dwnlodVersion.substring(dwnlodVersion.length() - 15);
                                                 long tmpServerDateIncr = Long.parseLong(tmpServerDtIncremental.substring(0, 8));
                                                 long tmpServertimeIncr = Long.parseLong(tmpServerDtIncremental.substring(9, 15));
@@ -493,7 +567,6 @@ public class UbiUpdateActivity extends Activity {
                                                 updatePrefsEditor.putLong("srvrTime", tmpServertimeIncr);
                                                 updatePrefsEditor.commit();
 
-                                                
                                                 RandomAccessFile mRandomAccessFile = new RandomAccessFile(getResources().getString(R.string.download_path), "rw");
                                                 byte[] buf = new byte[1024 * 8];
                                                 HttpURLConnection cn = (HttpURLConnection) url.openConnection();
@@ -506,6 +579,15 @@ public class UbiUpdateActivity extends Activity {
                                                     long mCountSize = 0;
                                                     BufferedInputStream bis = new BufferedInputStream(cn.getInputStream());
                                                     int len;
+                                                    mIndeterminate = false;
+                                                    mHandler.post(new Runnable() {
+                                                        @Override
+                                                        public void run() {
+                                                            mUpdateStatusTextView.setText("Starting Download .. ");
+                                                        }
+
+                                                    });
+
                                                     while ((len = bis.read(buf)) > 0) {
                                                         synchronized (mRandomAccessFile) {
                                                             mRandomAccessFile.write(buf, 0, len);
@@ -521,23 +603,31 @@ public class UbiUpdateActivity extends Activity {
                                                         }
 
                                                     });
-                                                    
+
                                                     if (MD5.checkMd5(md5, getResources().getString(R.string.download_path))) {
                                                         Log.d(this.getClass().getName(), "md5 check ok");
+                                                        mLastServerMD5 = md5;
+                                                        updatePrefsEditor.putString("lastMD5", mLastServerMD5);
+                                                        updatePrefsEditor.commit();
+
                                                         mHandler.post(new Runnable() {
                                                             @Override
                                                             public void run() {
-                                                                mUpdateStatusTextView.setText("MD5 checksum complete next copying and installing");
+                                                                mUpdateStatusTextView.setText("MD5 checksum complete .. ready to install");
+                                                                mCheckNowButton.setVisibility(View.GONE);
+                                                                mDownloadNowButton.setVisibility(View.GONE);
+                                                                mInstallNowButton.setVisibility(View.VISIBLE);
+                                                                mInstallNowButton.setEnabled(true);
                                                             }
 
                                                         });
-                                                        
+
                                                     } else {
                                                         Log.e(this.getClass().getName(), "failed md5");
                                                         mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Update File Error",
-                                                        " Downloaded update file failed md5 checksum, most likely error occurred while downloading .. \n\n'Download now' button will be re-enabled in 10 seconds"));
+                                                                        " Downloaded update file failed md5 checksum, most likely error occurred while downloading .. \n\n'Download now' button will be re-enabled in 10 seconds"));
                                                     }
-                                                    
+
                                                 } else {
                                                     mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Server Connection Error",
                                                                     " Server is either overloaded or unreachable at the moment .. \n\n'Download now' button will be re-enabled in 10 seconds"));
@@ -598,7 +688,9 @@ public class UbiUpdateActivity extends Activity {
                         public void run() {
                             mUpdateStatusTitleTextView.setText("System Error");
                             mUpdateStatusTextView.setText("Failed to get current system version ..");
+                            mInstallNowButton.setVisibility(View.GONE);
                             mDownloadNowButton.setVisibility(View.GONE);
+                            mCheckNowButton.setVisibility(View.VISIBLE);
                             mCheckNowButton.setEnabled(false);
                         }
                     });
@@ -612,6 +704,30 @@ public class UbiUpdateActivity extends Activity {
                 Log.e(this.getClass().getName(), "NumberFormatException", e);
                 mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "Communication exception occurred. " + e.getLocalizedMessage()
                                 + " .. \n\n'Check now' button will be re-enabled in 10 seconds"));
+            } catch (Exception e) {
+                mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "General exception occurred. " + e.getLocalizedMessage() + " .. \n\n'Download now' button will be re-enabled in 10 seconds"));
+            }
+        }
+    }
+
+    class InstallUpdateThread implements Runnable {
+
+        @Override
+        public void run() {
+            try {
+                mHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+
+                        mCheckNowButton.setVisibility(View.GONE);
+                        mDownloadNowButton.setVisibility(View.GONE);
+                        mInstallNowButton.setVisibility(View.VISIBLE);
+                        mInstallNowButton.setEnabled(false);
+                        mUpdateStatusTextView.setText("Installing please wait .. ");
+                    }
+
+                });
+
             } catch (Exception e) {
                 mHandler.post(new UpdateOnlyErrorStatusTitleMsgThread("Connection Exception", "General exception occurred. " + e.getLocalizedMessage() + " .. \n\n'Download now' button will be re-enabled in 10 seconds"));
             }
@@ -656,6 +772,7 @@ public class UbiUpdateActivity extends Activity {
                                 if (mServerTime > tmptimeIncr) {
                                     mUpdateStatusTitleTextView.setText("Update Available");
                                     mUpdateStatusTextView.setText("New update " + String.valueOf(mServerDate) + "." + String.valueOf(mServerTime) + ". Last checked for update " + mLastServerD8TimeCheck);
+                                    mInstallNowButton.setVisibility(View.GONE);
                                     mCheckNowButton.setVisibility(View.GONE);
                                     mDownloadNowButton.setVisibility(View.VISIBLE);
                                     mDownloadNowButton.setEnabled(true);
@@ -664,6 +781,7 @@ public class UbiUpdateActivity extends Activity {
                                     mUpdateStatusTitleTextView.setText("Your system is currently up to date");
                                     mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
                                     mDownloadNowButton.setVisibility(View.GONE);
+                                    mInstallNowButton.setVisibility(View.GONE);
                                     mCheckNowButton.setVisibility(View.VISIBLE);
                                     mCheckNowButton.setEnabled(true);
 
@@ -672,6 +790,7 @@ public class UbiUpdateActivity extends Activity {
                                 mUpdateStatusTitleTextView.setText("Your system is currently up to date");
                                 mUpdateStatusTextView.setText("Last checked for update " + mLastServerD8TimeCheck);
                                 mDownloadNowButton.setVisibility(View.GONE);
+                                mInstallNowButton.setVisibility(View.GONE);
                                 mCheckNowButton.setVisibility(View.VISIBLE);
                                 mCheckNowButton.setEnabled(true);
 
@@ -681,10 +800,11 @@ public class UbiUpdateActivity extends Activity {
                             mUpdateStatusTitleTextView.setText("System Error");
                             mUpdateStatusTextView.setText("Failed to get current system version ..");
                             mDownloadNowButton.setVisibility(View.GONE);
+                            mInstallNowButton.setVisibility(View.GONE);
                             mCheckNowButton.setVisibility(View.VISIBLE);
                             mCheckNowButton.setEnabled(false);
                         }
-                        
+
                         mIndeterminate = false;
 
                     }

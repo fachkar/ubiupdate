@@ -11,5 +11,6 @@
     <string name="download_now_text">Download now</string>
     <string name="download_path">/mnt/sdcard/update.zip</string>
     <string name="cache_path">/cache/update.zip</string>
+    <string name="install_now_text">Install update</string>
 
 </resources>
