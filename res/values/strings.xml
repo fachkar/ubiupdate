@@ -9,5 +9,7 @@
     <string name="check_now_text">Check now</string>
     <string name="update_checker_service_started">UbiUpdate checking current status</string>
     <string name="download_now_text">Download now</string>
+    <string name="download_path">/mnt/sdcard/update.zip</string>
+    <string name="cache_path">/cache/update.zip</string>
 
 </resources>
